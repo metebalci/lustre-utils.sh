@@ -18,6 +18,8 @@ $ sudo ./lustre_utils.sh create_vg lustre /dev/sdb
 INFO: lustre created on /dev/sdb
 ```
 
+The name of the volume group is stored in `/lustre/.vg` file. This file is read in all other commands to know volume group name (and because of this there is no need to provide volume group name to any other command).
+
 - Create a Lustre MGT, MGT is given a default size of 1GB
 
 ```
