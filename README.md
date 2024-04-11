@@ -4,7 +4,7 @@
 
 The script is written and tested on RHEL 8.9 with Lustre 2.15.4.
 
-The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname`.
+The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required and a physical volume (PV) and a volume group (VG) will be created using this device. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname` output.
 
 The outputs of the actual tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre output can be observed.
 
