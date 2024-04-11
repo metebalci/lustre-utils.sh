@@ -6,9 +6,9 @@ The script is written and tested on RHEL 8.9 with Lustre 2.15.4.
 
 The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname`.
 
-The outputs of the tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre creates some output to stdout.
+The outputs of the actual tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre output can be observed.
 
-The following steps are typically required to create a working Lustre filesystem. The block device/physical disk, volume and filesystem names are given as example. 
+## Creating a Lustre filesystem
 
 - Create a volume group:
 
@@ -54,7 +54,7 @@ INFO: filesystem created: users
 
 This creates the logical volumes listed above (`/dev/VGNAME/FSNAME_MDT<NUM>` and `/dev/VGNAME/FSNAME_OST<NUM)`) and also the corresponding folders under `/lustre/users` (`/lustre/<FSNAME>/<MDT<NUM>` and `/lustre/<FSNAME>/<OST<NUM>`).
 
-- Check status:
+- Status can be checked anytime:
 
 ```
 $ sudo ./lustre-utils.sh status
@@ -67,6 +67,8 @@ filesystem: users
   ost2 is OK, OSS is NOT running
   ost3 is OK, OSS is NOT running
 ```
+
+## Starting the Lustre filesystem
 
 - Start Lustre MGS:
 
@@ -90,7 +92,7 @@ At this point, Lustre is working with `users` filesystem. It can be mounted by t
 
 It is possible to create other filesystems (with create_fs). There is only one MGT/MGS required.
 
-In order to stop:
+### Stopping the Lustre filesystem
 
 - Stop the Lustre filesystem (MDS and OSS) `users` (be patient, this might take some seconds or more):
 
@@ -99,9 +101,15 @@ $ sudo ./lustre_utils.sh stop_fs users
 INFO: users MDS and OSS stopped. MGS can be stopped with stop_mgs command.
 ```
 
+This unmounts mdt and ost mount points.
+
 - If there is no other filesystem running, and if you want, stop Lustre MGS (be patient, this might take some seconds or more):
 
 ```
 $ sudo ./lustre_utils.sh stop_mgs
 INFO: MGS stopped
 ```
+
+This unmount the mgt (`/lustre/mgt`) mount point.
+
+### Removing the Lustre filesystem
