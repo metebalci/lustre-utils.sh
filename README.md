@@ -6,6 +6,8 @@ The script is written and tested on RHEL 8.9 with Lustre 2.15.4.
 
 The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname`.
 
+The outputs of the tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre creates some output to stdout.
+
 The following steps are typically required to create a working Lustre filesystem. The block device/physical disk, volume and filesystem names are given as example. 
 
 - Create a volume group:
@@ -24,24 +26,9 @@ INFO: creating logical volume: mgt
   Wiping ext4 signature on /dev/lustre/mgt.
   Logical volume "mgt" created.
 INFO: creating MGT fs: mgt
-
-   Permanent disk data:
-Target:     MGS
-Index:      unassigned
-Lustre FS:  
-Mount type: ldiskfs
-Flags:      0x64
-              (MGS first_time update )
-Persistent mount opts: user_xattr,errors=remount-ro
-Parameters:
-
-device size = 1024MB
-formatting backing filesystem ldiskfs on /dev/lustre/mgt
-	target name   MGS
-	kilobytes     1048576
-	options        -q -O uninit_bg,dir_nlink,quota,project,huge_file,^fast_commit,flex_bg -E lazy_journal_init="0",lazy_itable_init="0" -F
-mkfs_cmd = mke2fs -j -b 4096 -L MGS  -q -O uninit_bg,dir_nlink,quota,project,huge_file,^fast_commit,flex_bg -E lazy_journal_init="0",lazy_itable_init="0" -F /dev/lustre/mgt 1048576k
-Writing CONFIGS/mountdata
+...
+some more output
+...
 lrwxrwxrwx 1 root root 7 11. Apr 11:49 /dev/lustre/mgt -> ../dm-3
 INFO: MGT0 (1G) created
 ```
