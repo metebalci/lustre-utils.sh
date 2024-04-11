@@ -9,16 +9,21 @@ The basic idea is to create everything necessary for running a Lustre server on 
 The following steps are typically required. The block device/physical disk, volume and filesystem names are given as example. 
 
 - Create a volume group:
+
 `sudo ./lustre_utils.sh create_vg lustre /dev/sdb`
 
 - Create a Lustre MGT, MGT is given a default size of 1GB
+
 `sudo ./lustre_utils.sh ./create_mgt`
 
 - Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 1GB MDT and 4x 2GB ODT:
-`sudo ./lustre_utils.sh ./create_fs users 1 1 2 4
+
+`sudo ./lustre_utils.sh ./create_fs users 1 1 2 4`
 
 - Start Lustre MGS:
+
 `sudo ./lustre_utils.sh start_mgs`
 
 - Start Lustre Filesystem `users`:
+
 `sudo ./lustre_utils.sh start_fs users`
