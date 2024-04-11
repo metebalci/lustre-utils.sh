@@ -142,7 +142,7 @@ INFO: filesystem removed (or did not exist): users
 - Remove the volume group:
 
 ```
-sudo ./lustre-utils.sh remove_vg
+$ sudo ./lustre-utils.sh remove_vg
 ls: cannot access '/dev/lustre/*': No such file or directory
   Volume group "lustre" successfully removed
 INFO: lustre removed
