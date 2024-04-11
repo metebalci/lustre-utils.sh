@@ -8,22 +8,26 @@ The basic idea is to create everything necessary for running a Lustre server on 
 
 The outputs of the actual tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre output can be observed.
 
-## Creating a Lustre filesystem
+## Create the volume group
 
 - Create a volume group:
 
 ```
-$ sudo ./lustre_utils.sh create_vg lustre /dev/sdb
+$ sudo ./lustre-utils.sh create_vg lustre /dev/sdb
   Volume group "lustre" successfully created
 INFO: lustre created on /dev/sdb
 ```
 
 The name of the volume group is stored in `/lustre/.vg` file. This file is read in all other commands to know volume group name (and because of this there is no need to provide volume group name to any other command).
 
+The physical volume (PV) is not explicitly created (with `pvcreate /dev/sdb` above). `vgcreate` called by `lustre-utils.sh` automatically creates the PV if there is none.
+
+## Creating a Lustre filesystem
+
 - Create a Lustre MGT, MGT is given a default size of 1GB
 
 ```
-$ sudo ./lustre-util.sh create_mgt
+$ sudo ./lustre-utils.sh create_mgt
 INFO: creating logical volume: mgt
   Wiping ext4 signature on /dev/lustre/mgt.
   Logical volume "mgt" created.
@@ -40,7 +44,7 @@ This creates both `/dev/lustre/mgt` and `/lustre/mgt`.
 - Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 1GB MDT and 4x 2GB ODT:
 
 ```
-$ sudo ./lustre_utils.sh ./create_fs users 1 1 2 4
+$ sudo ./lustre-utils.sh ./create_fs users 1 1 2 4
 ...
 lots of output
 ...
@@ -73,7 +77,7 @@ filesystem: users
 - Start Lustre MGS:
 
 ```
-$ sudo ./lustre_utils.sh start_mgs
+$ sudo ./lustre-utils.sh start_mgs
 INFO: MGS started
 ```
 
@@ -82,7 +86,7 @@ Starting MGS means mounting `/dev/lustre/mgt` to `/lustre/mgt`.
 - Start the Lustre filesystem (MDS and OSS) `users`:
 
 ```
-$ sudo ./lustre_utils.sh start_fs users
+$ sudo ./lustre-utils.sh start_fs users
 INFO: users MDS and OSS started
 ```
 
@@ -97,7 +101,7 @@ It is possible to create other filesystems (with create_fs). There is only one M
 - Stop the Lustre filesystem (MDS and OSS) `users` (be patient, this might take some seconds or more):
 
 ```
-$ sudo ./lustre_utils.sh stop_fs users
+$ sudo ./lustre-utils.sh stop_fs users
 INFO: users MDS and OSS stopped. MGS can be stopped with stop_mgs command.
 ```
 
@@ -106,10 +110,42 @@ This unmounts mdt and ost mount points.
 - If there is no other filesystem running, and if you want, stop Lustre MGS (be patient, this might take some seconds or more):
 
 ```
-$ sudo ./lustre_utils.sh stop_mgs
+$ sudo ./lustre-utils.sh stop_mgs
 INFO: MGS stopped
 ```
 
 This unmount the mgt (`/lustre/mgt`) mount point.
 
 ### Removing the Lustre filesystem
+
+- Remove the Lustre filesystem:
+
+```
+ $ sudo ./lustre-utils.sh remove_fs users
+  Logical volume "users_mdt0" successfully removed.
+  Logical volume "users_ost0" successfully removed.
+  Logical volume "users_ost1" successfully removed.
+  Logical volume "users_ost2" successfully removed.
+  Logical volume "users_ost3" successfully removed.
+INFO: filesystem removed (or did not exist): users
+```
+
+- Remove the Lustre MGT:
+
+```
+ $ sudo ./lustre-utils.sh remove_mgt
+  Logical volume "mgt" successfully removed.
+```
+
+### Removing the volume group
+
+- Remove the volume group:
+
+```
+sudo ./lustre-utils.sh remove_vg
+ls: cannot access '/dev/lustre/*': No such file or directory
+  Volume group "lustre" successfully removed
+INFO: lustre removed
+```
+
+The physical volume (PV) is not explicitly deleted. If required, it can be deleted with `pvremove <DEVICE>`.
