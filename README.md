@@ -35,6 +35,8 @@ lrwxrwxrwx 1 root root 7 11. Apr 11:49 /dev/lustre/mgt -> ../dm-3
 INFO: MGT0 (1G) created
 ```
 
+This creates both `/dev/lustre/mgt` and `/lustre/mgt`.
+
 - Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 1GB MDT and 4x 2GB ODT:
 
 ```
@@ -49,6 +51,8 @@ lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost2 -> ../dm-7
 lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost3 -> ../dm-8
 INFO: filesystem created: users
 ```
+
+This creates the logical volumes listed above (`/dev/VGNAME/FSNAME_MDT<NUM>` and `/dev/VGNAME/FSNAME_OST<NUM)`) and also the corresponding folders under `/lustre/users` (`/lustre/<FSNAME>/<MDT<NUM>` and `/lustre/<FSNAME>/<OST<NUM>`).
 
 - Check status:
 
@@ -71,12 +75,16 @@ $ sudo ./lustre_utils.sh start_mgs
 INFO: MGS started
 ```
 
+Starting MGS means mounting `/dev/lustre/mgt` to `/lustre/mgt`.
+
 - Start the Lustre filesystem (MDS and OSS) `users`:
 
 ```
 $ sudo ./lustre_utils.sh start_fs users
 INFO: users MDS and OSS started
 ```
+
+Starting filesystem (starting MDS and OSS) means mounting `/dev/lustre/users_mdt*` to `/lustre/users/mdt*` and `/dev/lustre/users_ost*` to `/lustre/users/ost*`.
 
 At this point, Lustre is working with `users` filesystem. It can be mounted by the clients at `hostname:/users`.
 
