@@ -96,7 +96,7 @@ At this point, Lustre is working with `users` filesystem. It can be mounted by t
 
 It is possible to create other filesystems (with create_fs). There is only one MGT/MGS required.
 
-### Stopping the Lustre filesystem
+## Stopping the Lustre filesystem
 
 - Stop the Lustre filesystem (MDS and OSS) `users` (be patient, this might take some seconds or more):
 
@@ -116,7 +116,7 @@ INFO: MGS stopped
 
 This unmount the mgt (`/lustre/mgt`) mount point.
 
-### Removing the Lustre filesystem
+## Removing the Lustre filesystem
 
 - Remove the Lustre filesystem:
 
@@ -137,7 +137,7 @@ INFO: filesystem removed (or did not exist): users
   Logical volume "mgt" successfully removed.
 ```
 
-### Removing the volume group
+## Removing the volume group
 
 - Remove the volume group:
 
