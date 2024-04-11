@@ -39,7 +39,7 @@ lrwxrwxrwx 1 root root 7 11. Apr 11:49 /dev/lustre/mgt -> ../dm-3
 INFO: MGT0 (1G) created
 ```
 
-This creates both `/dev/lustre/mgt` and `/lustre/mgt`.
+This creates both `/dev/VGNAME/mgt` and `/lustre/mgt`.
 
 - Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 1GB MDT and 4x 2GB ODT:
 
@@ -90,7 +90,7 @@ $ sudo ./lustre-utils.sh start_fs users
 INFO: users MDS and OSS started
 ```
 
-Starting filesystem (starting MDS and OSS) means mounting `/dev/lustre/users_mdt*` to `/lustre/users/mdt*` and `/dev/lustre/users_ost*` to `/lustre/users/ost*`.
+Starting filesystem (starting MDS and OSS) means mounting (for this example with VGNAME=lustre and filesystem=users) `/dev/lustre/users_mdt*` to `/lustre/users/mdt*` and `/dev/lustre/users_ost*` to `/lustre/users/ost*`.
 
 At this point, Lustre is working with `users` filesystem. It can be mounted by the clients at `hostname:/users`.
 
@@ -105,7 +105,7 @@ $ sudo ./lustre-utils.sh stop_fs users
 INFO: users MDS and OSS stopped. MGS can be stopped with stop_mgs command.
 ```
 
-This unmounts mdt and ost mount points.
+This unmounts MDT and OST mount points.
 
 - If there is no other filesystem running, and if you want, stop Lustre MGS (be patient, this might take some seconds or more):
 
@@ -114,7 +114,7 @@ $ sudo ./lustre-utils.sh stop_mgs
 INFO: MGS stopped
 ```
 
-This unmount the mgt (`/lustre/mgt`) mount point.
+This unmounts the MGT (`/lustre/mgt`) mount point.
 
 ## Removing the Lustre filesystem
 
@@ -130,12 +130,16 @@ This unmount the mgt (`/lustre/mgt`) mount point.
 INFO: filesystem removed (or did not exist): users
 ```
 
+This removes the corresponding logical volumes of MDTs and OSTs under `/dev/VGNAME/`.
+
 - Remove the Lustre MGT:
 
 ```
  $ sudo ./lustre-utils.sh remove_mgt
   Logical volume "mgt" successfully removed.
 ```
+
+This removes the `/dev/VGNAME/mgt` logical volume.
 
 ## Removing the volume group
 
