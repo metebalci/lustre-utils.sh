@@ -55,7 +55,7 @@ function read_vg_name
     VG=`cat /lustre/.vg`
     debug "VG (.vg)=$VG"
   else
-    error "no /lustre/.vg file, this might be due to a bug or if it is deleted manually"
+    error "there is no volume group (no .vg)"
   fi
 }
 
@@ -101,9 +101,13 @@ function remove_vg
     error "there is no volume group named $VG, /lustre/.vg removed"
   fi
 
-  if [ `ls -l /dev/$VG | wc -l` -ne 0 ]
+  if [ -d /dev/$VG ]
   then
-    error "there are logical volumes on $VG, you should remove them first"
+    NR=`ls -l /dev/$VG/* | wc -l`
+    if [ $NR -ne 0 ]
+    then
+      error "there are logical volumes on $VG, you should remove them first"
+    fi
   fi
 
   vgremove $VG
@@ -157,17 +161,21 @@ function remove_lustre_mgt
     error "MGS is running, maybe run stop_mgs ?"
   fi
 
-  NR=`ls -l /lustre/* | wc -l`
-
-  if [ $NR -gt 1 ]
+  if [ ! -f /lustre/.osd.mgt ]
   then
-    error "/lustre is not empty, please remove filesystems first"
-  fi
+    error "no MGT found"
+  else
+    NR=`ls -l /lustre/* | wc -l`
+    if [ $NR -gt 1 ]
+    then
+      error "/lustre is not empty, please remove filesystems first"
+    fi
 
-  OSD=`cat /lustre/.osd.mgt`
-  if [ $OSD == "zfs" ]
-  then
-    zpool destroy mgt
+    OSD=`cat /lustre/.osd.mgt`
+    if [ $OSD == "zfs" ]
+    then
+      zpool destroy mgt
+    fi
   fi
   rm -rf /lustre/.osd.mgt || true
 
@@ -298,7 +306,7 @@ function remove_lustre_fs
   done
   shopt -u nullglob
   rm -rf /lustre/$FS || true
-  info "filesystem removed (or did not exist): $FS"
+  info "filesystem removed: $FS"
 }
 
 # https://wiki.lustre.org/Starting_and_Stopping_Lustre_Services
@@ -325,7 +333,13 @@ function start_lustre_mgs
     error "no /lustre/mgt directory, this is either due to a bug or if the directory is manually deleted"
   fi
 
-  mount -t lustre $DEV /lustre/mgt
+  MGT_OSD=`cat /lustre/.osd.mgt`
+  if [ $MGT_OSD == "zfs" ]
+  then
+    mount -t lustre mgt/lustre /lustre/mgt
+  else
+    mount -t lustre $DEV /lustre/mgt
+  fi
 
   info "MGS started"
 }
@@ -344,6 +358,7 @@ function start_lustre_fs
     error "first MGS should be started, maybe run start_mgs ?"
   fi
 
+  MDT_OSD=`cat /lustre/${FS}/.osd.mdt`
   for mdt in /lustre/$FS/mdt*
   do
     DEV=/dev/$VG/${FS}_$(basename $mdt)
@@ -351,9 +366,15 @@ function start_lustre_fs
     then
       error "cannot find MDT logical volume: $DEV"
     fi
-    mount -t lustre $DEV $mdt
+    if [ $MDT_OSD == "zfs" ]
+    then
+      mount -t lustre ${FS}_$(basename $mdt)/lustre $mdt
+    else
+      mount -t lustre $DEV $mdt
+    fi
   done
 
+  OST_OSD=`cat /lustre/${FS}/.osd.ost`
   for ost in /lustre/$FS/ost*
   do
     DEV=/dev/$VG/${FS}_$(basename $ost)
@@ -361,7 +382,12 @@ function start_lustre_fs
     then
       error "cannot find OST logical volume: $DEV"
     fi
-    mount -t lustre $DEV $ost
+    if [ $MDT_OSD == "zfs" ]
+    then
+      mount -t lustre ${FS}_$(basename $ost)/lustre $ost
+    else
+      mount -t lustre $DEV $ost
+    fi
   done
 
   info "$FS MDS and OSS started"
@@ -493,8 +519,10 @@ function display_status
       shopt -u nullglob
 
     else
-      echo "No VG"
+      echo "No Lustre setup found. (/lustre exists but no volume group)"
     fi
+  else
+    echo "No Lustre setup found."
   fi
 }
 
