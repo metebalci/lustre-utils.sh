@@ -1,10 +1,20 @@
-**WARNING: The lustre-utils.sh script in this repository creates and REMOVES filesystems, partitions, logical volumes and volume groups with confirmation prompts disabled (e.g. -y option in lvremove). The programs are created to be used to evaluate Lustre, not to be used in production.**
+**WARNING: The lustre-utils.sh script in this repository creates and REMOVES filesystems, partitions, pools, logical volumes and volume groups with confirmation prompts DISABLED (e.g. -y option in lvremove). The script is created to make a quick Lustre setup, not to be used in production.**
 
 # lustre-utils.sh
 
-The script is written and tested on RHEL 8.9 with Lustre 2.15.4.
+The script is written and tested on RHEL 8.9 with Lustre 2.15.4. It is tested with ZFS (dkms) and LDISKFS (kmod) backends.
 
 The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required and a physical volume (PV) and a volume group (VG) will be created using this device. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname` output.
+
+A few files are created under `/lustre`:
+- `/lustre/.vg` holds the volume group name
+- `/lustre/.osd.mgt` holds the backend type (zfs or ldiskfs) of MGT
+- `/lustre/<FS>/.osd.mdt` holds the backend type (zfs or ldiskfs) of MDTs
+- `/lustre/<FS>/.osd.ost` holds the backend type (zfs or ldiskfs) of OSTs
+
+It is possible to use different backends for MGT, MDTs and OSTs. However, all MDTs and all OSTs should have the same backend.
+
+When ZFS backend is used, a different pool for each target is created. The pool has the same name as the logical volume. The dataset on the pool is always called `lustre`.
 
 The outputs of the actual tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre output can be observed.
 
@@ -18,7 +28,7 @@ $ sudo ./lustre-utils.sh create_vg lustre /dev/sdb
 INFO: lustre created on /dev/sdb
 ```
 
-The name of the volume group is stored in `/lustre/.vg` file. This file is read in all other commands to know volume group name (and because of this there is no need to provide volume group name to any other command).
+Since the name of the volume group is stored in `/lustre/.vg` file, there is no need to provide volume group name to any other command.
 
 The physical volume (PV) is not explicitly created (with `pvcreate /dev/sdb` above). `vgcreate` called by `lustre-utils.sh` automatically creates the PV if there is none.
 
@@ -27,49 +37,71 @@ The physical volume (PV) is not explicitly created (with `pvcreate /dev/sdb` abo
 - Create a Lustre MGT, MGT is given a default size of 1GB
 
 ```
-$ sudo ./lustre-utils.sh create_mgt
-INFO: creating logical volume: mgt
-  Wiping ext4 signature on /dev/lustre/mgt.
-  Logical volume "mgt" created.
-INFO: creating MGT fs: mgt
+$ sudo ./lustre-utils.sh create_mgt zfs
 ...
-some more output
+some output
 ...
-lrwxrwxrwx 1 root root 7 11. Apr 11:49 /dev/lustre/mgt -> ../dm-3
+lrwxrwxrwx 1 root root 7 11. Apr 11:49 /dev/lustre/mgt -> ../dm-2
 INFO: MGT0 (1G) created
 ```
 
-This creates both `/dev/VGNAME/mgt` and `/lustre/mgt`.
-
-- Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 1GB MDT and 4x 2GB ODT:
+This creates both `/dev/VGNAME/mgt` and `/lustre/mgt`. When ZFS backend is used, a pool named `zfs` and a dataset named `zfs/lustre` is created.
 
 ```
-$ sudo ./lustre-utils.sh ./create_fs users 1 1 2 4
+$ zfs list
+NAME         USED  AVAIL     REFER  MOUNTPOINT
+mgt          660K   831M       96K  /mgt
+mgt/lustre    96K   831M       96K  /mgt/lustre
+```
+
+- Create a Lustre Filesystem (MDTs and ODTs) called `users` with 1x 2GB MDT and 4x 16GB ODT, use ZFS for both:
+
+```
+$ sudo ./lustre-utils.sh create_fs users zfs 2 1 zfs 16 4
 ...
 lots of output
 ...
-lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_mdt0 -> ../dm-4
-lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost0 -> ../dm-5
-lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost1 -> ../dm-6
-lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost2 -> ../dm-7
-lrwxrwxrwx 1 root root 7 11. Apr 11:52 /dev/lustre/users_ost3 -> ../dm-8
+lrwxrwxrwx 1 root root 7 Apr 12 08:36 /dev/lustre/users_mdt0 -> ../dm-3
+lrwxrwxrwx 1 root root 7 Apr 12 08:36 /dev/lustre/users_ost0 -> ../dm-4
+lrwxrwxrwx 1 root root 7 Apr 12 08:36 /dev/lustre/users_ost1 -> ../dm-5
+lrwxrwxrwx 1 root root 7 Apr 12 08:36 /dev/lustre/users_ost2 -> ../dm-6
+lrwxrwxrwx 1 root root 7 Apr 12 08:36 /dev/lustre/users_ost3 -> ../dm-7
 INFO: filesystem created: users
 ```
 
 This creates the logical volumes listed above (`/dev/VGNAME/FSNAME_MDT<NUM>` and `/dev/VGNAME/FSNAME_OST<NUM)`) and also the corresponding folders under `/lustre/users` (`/lustre/<FSNAME>/<MDT<NUM>` and `/lustre/<FSNAME>/<OST<NUM>`).
+
+When ZFS backend is used, the pools and the datasets are also created:
+
+```
+$ zfs list
+NAME                USED  AVAIL     REFER  MOUNTPOINT
+mgt                 660K   831M       96K  /mgt
+mgt/lustre           96K   831M       96K  /mgt/lustre
+users_mdt0          660K  1.75G       96K  /users_mdt0
+users_mdt0/lustre    96K  1.75G       96K  /users_mdt0/lustre
+users_ost0          660K  15.0G       96K  /users_ost0
+users_ost0/lustre    96K  15.0G       96K  /users_ost0/lustre
+users_ost1          672K  15.0G       96K  /users_ost1
+users_ost1/lustre    96K  15.0G       96K  /users_ost1/lustre
+users_ost2          660K  15.0G       96K  /users_ost2
+users_ost2/lustre    96K  15.0G       96K  /users_ost2/lustre
+users_ost3          660K  15.0G       96K  /users_ost3
+users_ost3/lustre    96K  15.0G       96K  /users_ost3/lustre
+```
 
 - Status can be checked anytime:
 
 ```
 $ sudo ./lustre-utils.sh status
 VG name is lustre
-MGT is OK, MGS is NOT running
+MGT (zfs) is OK, MGS is NOT running
 filesystem: users
-  mdt0 is OK, MDS is NOT running
-  ost0 is OK, OSS is NOT running
-  ost1 is OK, OSS is NOT running
-  ost2 is OK, OSS is NOT running
-  ost3 is OK, OSS is NOT running
+  mdt0 (zfs) is OK, MDS is NOT running
+  ost0 (zfs) is OK, OSS is NOT running
+  ost1 (zfs) is OK, OSS is NOT running
+  ost2 (zfs) is OK, OSS is NOT running
+  ost3 (zfs) is OK, OSS is NOT running
 ```
 
 ## Starting the Lustre filesystem
@@ -90,7 +122,7 @@ $ sudo ./lustre-utils.sh start_fs users
 INFO: users MDS and OSS started
 ```
 
-Starting filesystem (starting MDS and OSS) means mounting (for this example with VGNAME=lustre and filesystem=users) `/dev/lustre/users_mdt*` to `/lustre/users/mdt*` and `/dev/lustre/users_ost*` to `/lustre/users/ost*`.
+Starting filesystem (starting MDS and OSS) means mounting logical volumes in LDISKFS backend and mounting datasets in ZFS backend.
 
 At this point, Lustre is working with `users` filesystem. It can be mounted by the clients at `hostname:/users`.
 
@@ -107,7 +139,7 @@ INFO: users MDS and OSS stopped. MGS can be stopped with stop_mgs command.
 
 This unmounts MDT and OST mount points.
 
-- If there is no other filesystem running, and if you want, stop Lustre MGS (be patient, this might take some seconds or more):
+- If there is no other filesystem running, and if you want, you can stop Lustre MGS (be patient, this might take some seconds or more):
 
 ```
 $ sudo ./lustre-utils.sh stop_mgs
@@ -118,7 +150,7 @@ This unmounts the MGT (`/lustre/mgt`) mount point.
 
 ## Removing the Lustre filesystem
 
-- Remove the Lustre filesystem:
+- Remove the filesystem:
 
 ```
  $ sudo ./lustre-utils.sh remove_fs users
@@ -127,12 +159,12 @@ This unmounts the MGT (`/lustre/mgt`) mount point.
   Logical volume "users_ost1" successfully removed.
   Logical volume "users_ost2" successfully removed.
   Logical volume "users_ost3" successfully removed.
-INFO: filesystem removed (or did not exist): users
+INFO: filesystem removed: users
 ```
 
-This removes the corresponding logical volumes of MDTs and OSTs under `/dev/VGNAME/`.
+This removes the corresponding logical volumes of MDTs and OSTs under `/dev/VGNAME/`. In ZFS backend, it also destroys the pools.
 
-- Remove the Lustre MGT:
+- Remove the MGT:
 
 ```
  $ sudo ./lustre-utils.sh remove_mgt
@@ -147,7 +179,6 @@ This removes the `/dev/VGNAME/mgt` logical volume.
 
 ```
 $ sudo ./lustre-utils.sh remove_vg
-ls: cannot access '/dev/lustre/*': No such file or directory
   Volume group "lustre" successfully removed
 INFO: lustre removed
 ```
