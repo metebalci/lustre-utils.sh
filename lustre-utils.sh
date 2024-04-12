@@ -39,6 +39,15 @@ function debug
   fi
 }
 
+function check_osd
+{
+  OSD=$1
+  if [ $OSD != "zfs" ] && [ $OSD != "ldiskfs" ]
+  then
+    error "wrong OSD: $OSD"
+  fi
+}
+
 function read_vg_name
 {
   if [ -f /lustre/.vg ]
@@ -55,6 +64,12 @@ function create_vg
   VG=$1
   DEVICE=$2
   debug "create_vg VG=$VG DEVICE=$DEVICE"
+
+  if [ -f /lustre/.vg ] 
+  then
+    read_vg_name
+    error "there is already a volume group "$VG" created with lustre-utils"
+  fi
 
   vgdisplay $VG > /dev/null 2>&1
 
@@ -86,7 +101,7 @@ function remove_vg
     error "there is no volume group named $VG, /lustre/.vg removed"
   fi
 
-  if [ `ls -l /dev/$VG/* | wc -l` -ne 0 ]
+  if [ `ls -l /dev/$VG | wc -l` -ne 0 ]
   then
     error "there are logical volumes on $VG, you should remove them first"
   fi
@@ -100,6 +115,9 @@ function remove_vg
 function create_lustre_mgt
 {
   read_vg_name
+  OSD=$1
+  debug "create_lustre_mgt OSD=$OSD"
+  check_osd $OSD
 
   DEV=/dev/$VG/mgt
 
@@ -111,9 +129,19 @@ function create_lustre_mgt
     lvcreate $LVCREATEOPTIONS -L 1G -n mgt $VG
   fi
   info "creating MGT fs: mgt"
-  mkfs.lustre --mgs --backfstype=ldiskfs --reformat $DEV
+  if [ $OSD == "zfs" ]
+  then
+    mkfs.lustre --mgs --backfstype=zfs --reformat mgt/lustre $VG/mgt
+  else
+    mkfs.lustre --mgs --backfstype=ldiskfs --reformat $DEV
+  fi
   mkdir -p /lustre/mgt || true
-
+  if [ $OSD == "zfs" ]
+  then
+    echo "zfs" > /lustre/.osd.mgt
+  else
+    echo "ldiskfs" > /lustre/.osd.mgt
+  fi
   ls -l /dev/$VG/mgt
   info "MGT0 (1G) created"
 }
@@ -122,12 +150,26 @@ function remove_lustre_mgt
 {
   read_vg_name
 
+  mount | grep /lustre/mgt > /dev/null 2>&1
+
+  if [ $? -eq 0 ]
+  then
+    error "MGS is running, maybe run stop_mgs ?"
+  fi
+
   NR=`ls -l /lustre/* | wc -l`
 
   if [ $NR -gt 1 ]
   then
     error "/lustre is not empty, please remove filesystems first"
   fi
+
+  OSD=`cat /lustre/.osd.mgt`
+  if [ $OSD == "zfs" ]
+  then
+    zpool destroy mgt
+  fi
+  rm -rf /lustre/.osd.mgt || true
 
   DEV=/dev/$VG/mgt
 
@@ -145,9 +187,11 @@ function create_lustre_mdt_or_ost
 {
   TYPE=$1
   FS=$2
-  SIZE=$3
-  NUM=$4
-  debug "TYPE=$TYPE FS=$FS SIZE=$SIZE NUM=$NUM"
+  OSD=$3
+  SIZE=$4
+  NUM=$5
+  debug "TYPE=$TYPE FS=$FS OSD=$OSD SIZE=$SIZE NUM=$NUM"
+  check_osd $OSD
   SIZE="${SIZE}G"
 
   read_vg_name
@@ -179,8 +223,19 @@ function create_lustre_mdt_or_ost
     lvcreate $LVCREATEOPTIONS -L $SIZE -n $DEVBN $VG || error "cannot create the logical volume: $DEV"
     echo "creating $TYPEUS fs: $DEVBN"
     TYPEOPTION="--$TYPE"
-    mkfs.lustre $TYPEOPTION --backfstype=ldiskfs --reformat --fsname=$FS --index=$IDX --mgsnode=$MGSNODE $DEV || error "cannot create $TYPEUS lustre fs on $DEV"
+    if [ $OSD == "zfs" ]
+    then
+      mkfs.lustre $TYPEOPTION --backfstype=zfs --reformat --fsname=$FS --index=$IDX --mgsnode=$MGSNODE ${FS}_${TYPE}${IDX}/lustre $VG/${FS}_${TYPE}${IDX} || error "cannot create $TYPEUS lustre fs on $DEV"
+    else
+      mkfs.lustre $TYPEOPTION --backfstype=ldiskfs --reformat --fsname=$FS --index=$IDX --mgsnode=$MGSNODE $DEV || error "cannot create $TYPEUS lustre fs on $DEV"
+    fi
     mkdir -p /lustre/${FS}/${TYPE}${IDX} || true
+    if [ $OSD == "zfs" ]
+    then
+      echo "zfs" > /lustre/${FS}/.osd.${TYPE}
+    else
+      echo "ldiskfs" > /lustre/${FS}/.osd.${TYPE}
+    fi
 
     info "${TYPEUS}${IDX} ($SIZE) created"
 
@@ -190,14 +245,18 @@ function create_lustre_mdt_or_ost
 function create_lustre_fs
 {
   FS=$1
-  MDT_SIZE=$2
-  MDT_NUM=$3
-  OST_SIZE=$4
-  OST_NUM=$5
-  debug "create_lustre_fs FS=$FS MDT_SIZE=$MDT_SIZE MDT_NUM=$MDT_NUM OST_SIZE=$OST_SIZE OST_NUM=$OST_NUM"
+  MDT_OSD=$2
+  MDT_SIZE=$3
+  MDT_NUM=$4
+  OST_OSD=$5
+  OST_SIZE=$6
+  OST_NUM=$7
+  debug "create_lustre_fs FS=$FS MDT_OSD=$MDT_OSD MDT_SIZE=$MDT_SIZE MDT_NUM=$MDT_NUM OST_OSD=$OST_OSD OST_SIZE=$OST_SIZE OST_NUM=$OST_NUM"
+  check_osd $MDT_OSD
+  check_osd $OST_OSD
 
-  create_lustre_mdt_or_ost mdt $FS $MDT_SIZE $MDT_NUM
-  create_lustre_mdt_or_ost ost $FS $OST_SIZE $OST_NUM
+  create_lustre_mdt_or_ost mdt $FS $MDT_OSD $MDT_SIZE $MDT_NUM
+  create_lustre_mdt_or_ost ost $FS $OST_OSD $OST_SIZE $OST_NUM
 
   ls -l /dev/$VG/${FS}_mdt*
   ls -l /dev/$VG/${FS}_ost*
@@ -211,6 +270,26 @@ function remove_lustre_fs
   debug "remove_lustre_fs FS=$FS"
 
   read_vg_name
+
+  MDT_OSD=`cat /lustre/${FS}/.osd.mdt`
+  if [ $MDT_OSD == "zfs" ]
+  then
+    for pool in `zpool list -H | cut -f1 | grep ${FS}_mdt`
+    do
+      zpool destroy $pool
+    done
+  fi
+  rm -rf /lustre/${FS}/.osd.mdt || true
+
+  OST_OSD=`cat /lustre/${FS}/.osd.ost`
+  if [ $OST_OSD == "zfs" ]
+  then
+    for pool in `zpool list -H | cut -f1 | grep ${FS}_ost`
+    do
+      zpool destroy $pool
+    done
+  fi
+  rm -rf /lustre/${FS}/.osd.ost || true
 
   shopt -s nullglob
   for dev in /dev/$VG/${FS}_*
@@ -350,7 +429,8 @@ function display_status
       then
         if [ -e /dev/$VG/mgt ]
         then
-          echo -n "MGT is OK, "
+          MGT_OSD=`cat /lustre/.osd.mgt`
+          echo -n "MGT ($MGT_OSD) is OK, "
           mount | grep /lustre/mgt > /dev/null 2>&1
           if [ $? -eq 0 ]
           then
@@ -377,8 +457,9 @@ function display_status
             DEV=/dev/$VG/${FS}_$(basename $mdt)
             if [ -e $DEV ] 
             then
-              echo -n "  $(basename $mdt) is OK, "
-              mount | grep $DEV > /dev/null 2>&1
+              MDT_OSD=`cat /lustre/${FS}/.osd.mdt`
+              echo -n "  $(basename $mdt) ($MDT_OSD) is OK, "
+              mount | grep $mdt > /dev/null 2>&1
               if [ $? -eq 0 ]
               then
                 echo "MDS is running"
@@ -394,8 +475,9 @@ function display_status
             DEV=/dev/$VG/${FS}_$(basename $ost)
             if [ -e $DEV ] 
             then
-              echo -n "  $(basename $ost) is OK, "
-              mount | grep $DEV > /dev/null 2>&1
+              OST_OSD=`cat /lustre/${FS}/.osd.ost`
+              echo -n "  $(basename $ost) ($OST_OSD) is OK, "
+              mount | grep $ost > /dev/null 2>&1
               if [ $? -eq 0 ]
               then
                 echo "OSS is running"
@@ -419,27 +501,31 @@ function display_status
 function usage
 {
   echo ""
-  echo "lustre-util.sh is a collection of Lustre ldiskfs utilities"
+  echo "lustre-utils.sh is a collection of Lustre ldiskfs/zfs utilities"
   echo ""
-  echo "Usage: lustre-util.sh COMMAND OPTIONS?"
+  echo "Usage: lustre-utils.sh COMMAND OPTIONS?"
   echo ""
   echo "Commands:"
   echo ""
-  echo "  create_mgt: create one 1G MGT"
+  echo "  create_vg <VG> <DEVICE>: create volume group" 
+  echo "  remove_vg: remove volume group"
+  echo ""
+  echo "  create_mgt <MGT_OSD>: create one 1G MGT"
   echo "  remove_mgt: remove the MGT"
+  echo ""
+  echo "  create_fs <FSNAME> <MDT_OSD> <MDT_SIZE_IN_GB> <MDT_NUM> <ODT_OSD> <ODT_SIZE_IN_GB> <ODT_NUM>: create MDTs and OSTs"
+  echo "  remove_fs <FSNAME>: remove MDTs and OSTs"
+  echo ""
   echo "  start_mgs:  start MGS"
   echo "  stop_mgs:   stop MGS"
   echo ""
-  echo "  create_fs <FSNAME> <MDT_SIZE_IN_GB> <MDT_NUM> <ODT_SIZE_IN_GB> <ODT_NUM>: create MDTs and OSTs"
-  echo "  remove_fs <FSNAME>: remove MDTs and OSTs"
   echo "  start_fs  <FSNAME>: start MDS then OSS"
   echo "  stop_fs   <FSNAME>: stop MDS then OSS"
   echo ""
   echo "  status: display current status"
   echo ""
-  echo "  create_vg <VG> <DEVICE>: create volume group" 
-  echo "  remove_vg: remove volume group (created before with lustre-util.sh)"
-  echo ""
+  echo "  <_OSD> can be zfs or ldiskfs"
+  echo "  <_NUM> should be >= 1"
   exit 1
 }
 
@@ -461,7 +547,12 @@ debug "COMMAND=$COMMAND"
 case "$COMMAND" in
 
   create_mgt)
-    create_lustre_mgt
+    if [ "$#" -ne 2 ]
+    then
+      usage
+    fi
+    OSD=$2
+    create_lustre_mgt $OSD
     ;;
 
   remove_mgt)
@@ -477,16 +568,18 @@ case "$COMMAND" in
     ;;
 
   create_fs)
-    if [ "$#" -ne 6 ]
+    if [ "$#" -ne 8 ]
     then
       usage
     fi
     FS=$2
-    MDT_SIZE=$3
-    MDT_NUM=$4
-    OST_SIZE=$5
-    OST_NUM=$6
-    create_lustre_fs $FS $MDT_SIZE $MDT_NUM $OST_SIZE $OST_NUM
+    MDT_OSD=$3
+    MDT_SIZE=$4
+    MDT_NUM=$5
+    OST_OSD=$6
+    OST_SIZE=$7
+    OST_NUM=$8
+    create_lustre_fs $FS $MDT_OSD $MDT_SIZE $MDT_NUM $OST_OSD $OST_SIZE $OST_NUM
     ;;
 
   remove_fs)
@@ -541,23 +634,3 @@ case "$COMMAND" in
 esac
 
 exit 0
-
-stop_lustre users
-stop_lustre mgt
-
-exit
-
-remove_lustre ost users || true
-remove_lustre mdt users || true
-remove_lustre mgt || true
-
-
-DEVICE=$1
-
-recreate_volume_group $DEVICE
-
-# create lustre fs
-
-# https://wiki.lustre.org/Starting_and_Stopping_Lustre_Services
-start_lustre mgt
-start_lustre users
