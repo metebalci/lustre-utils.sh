@@ -167,6 +167,8 @@ INFO: filesystem removed: users
 
 This removes the corresponding logical volumes of MDTs and OSTs under `/dev/VGNAME/`. In ZFS backend, it also destroys the pools.
 
+If you do not have any other file system, do not plan to use Lustre anymore, you can remove the MGT.
+
 - Remove the MGT:
 
 ```
