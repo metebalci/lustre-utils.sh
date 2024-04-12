@@ -2,11 +2,12 @@
 
 # lustre-utils.sh
 
-The script is written and tested on RHEL 8.9 with Lustre 2.15.4. It is tested with ZFS (dkms) and LDISKFS (kmod) backends.
+Configuring Lustre requires one to run a number of commands. The `lustre-utils.sh` script simplifies to create everything necessary for running a Lustre server on a single computer. 
 
-The basic idea is to create everything necessary for running a Lustre server on a single computer. A free block device is required and a physical volume (PV) and a volume group (VG) will be created using this device. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname` output.
+To use this script, a free block device is required and a physical volume (PV) and a volume group (VG) will be created on this device. The Lustre targets (MGT, MDTs, OSTs) will all be mounted to directories under `/lustre`. Since a single computer is assumed, `--mgsnode` option for `mkfs.lustre` is taken from `hostname` output.
 
-A few files are created under `/lustre`:
+A few helper files are created under `/lustre`:
+
 - `/lustre/.vg` holds the volume group name
 - `/lustre/.osd.mgt` holds the backend type (zfs or ldiskfs) of MGT
 - `/lustre/<FS>/.osd.mdt` holds the backend type (zfs or ldiskfs) of MDTs
@@ -15,6 +16,8 @@ A few files are created under `/lustre`:
 It is possible to use different backends for MGT, MDTs and OSTs. However, all MDTs and all OSTs should have the same backend.
 
 When ZFS backend is used, a different pool for each target is created. The pool has the same name as the logical volume. The dataset on the pool is always called `lustre`.
+
+The script is written and tested on RHEL 8.9 with Lustre 2.15.4. It is tested with ZFS (dkms) and LDISKFS (kmod) backends.
 
 The outputs of the actual tools are not suppressed. Particularly when creating MGT, MDT and OST, mkfs.lustre output can be observed.
 
